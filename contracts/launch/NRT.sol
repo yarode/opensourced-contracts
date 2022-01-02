@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity 0.7.5;
+pragma solidity ^0.8.0;
 
-import "../lib/OwnableMulti.sol";
-import "../lib/SafeMath.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol";
 
 //NRT is like a private stock
 //can only be traded with the issuer who remains in control of the market

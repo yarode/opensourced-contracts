@@ -1,10 +1,13 @@
 // https://eips.ethereum.org/EIPS/eip-20
 // SPDX-License-Identifier: MIT
-pragma solidity 0.7.5;
+
+// contract updated by Jasper
+
+pragma solidity ^0.8.0;
 import "./NRT.sol";
-import "../lib/ERC20.sol";
-import "../lib/OwnableBase.sol";
-import "../lib/SafeMath.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol";
 
 ////////////////////////////////////
 //
@@ -20,7 +23,7 @@ contract FairPriceLaunch is OwnableBase {
     // The token used for contributions
     address public investToken;
 
-    // The Non-transferable token used for sale, redeemable for Mag
+    // The Non-transferable token used for sale, redeemable for final token
     NRT public redeemableToken;
 
     //Limits
@@ -40,7 +43,7 @@ contract FairPriceLaunch is OwnableBase {
     uint256 public launchStartTime;
     // length of sale period
     uint256 public saleDuration;
-    // launchStartTime.add(sale) durations
+    // Scheduled end time
     uint256 public launchEndTime;
     //The delay required between investment removal
     uint256 public investRemovalDelay;
@@ -55,7 +58,7 @@ contract FairPriceLaunch is OwnableBase {
     bool public finalized;
 
     //EVENTS
-    event SaleEnabled(bool enabled, uint256 time);
+    event SaleToggled(bool enabled, uint256 time);
     event RedeemEnabled(bool enabled, uint256 time);
 
     event Invest(
@@ -89,6 +92,23 @@ contract FairPriceLaunch is OwnableBase {
 
     mapping(address => InvestorInfo) public investorInfoMap;
     address[] public investorList;
+
+    // Modifiers
+
+    modifier requireSaleEnabled() {
+      require(saleEnabled);
+      _;
+    }
+
+    modifier requireRedeemEnabled() {
+      require(redeemEnabled);
+      _;
+    }
+
+    modifier requireNotFinalized() {
+      require(!finalized);
+      _;
+    }
 
     constructor(
         address _fundsRedeemer,
@@ -134,6 +154,16 @@ contract FairPriceLaunch is OwnableBase {
         redeemableToken = NRT(_redeemableToken);
         saleEnabled = false;
         redeemEnabled = false;
+    }
+
+    // Private utils
+
+    // call this after every investment to finalize sale state
+    function updateSaleState() private {
+      if(totalGlobalInvested.add(amountToInvest) <= maxGlobalInvestAllowed + buffer) finalized = true;
+      if(finalized) {
+
+      }
     }
 
     //User functions
@@ -224,7 +254,7 @@ contract FairPriceLaunch is OwnableBase {
             amountToRemove <= investor.totalInvested,
             "Cannot Remove more than invested"
         );
-        
+
         //Make sure they can't withdraw too often.
         Withdrawal[] storage withdrawHistory = investor.withdrawHistory;
         uint256 authorizedWithdraw = maxInvestRemovablePerPeriod.sub(
@@ -295,23 +325,26 @@ contract FairPriceLaunch is OwnableBase {
     }
 
     function hasSaleEnded() public view returns (bool) {
+      if(finalized) return true;
+      else {
         return block.timestamp > launchStartTime.add(saleDuration);
+      }
     }
 
     //------ Owner Functions ------
 
-    function enableSale() public onlyOwner {
-        saleEnabled = true;
-        emit SaleEnabled(true, block.timestamp);
+    function toggleSale(bool state) public onlyOwner {
+        saleEnabled = state;
+        emit SaleEnabled(state, block.timestamp);
     }
 
-    function enableRedeem() public onlyOwner {
-        redeemEnabled = true;
-        emit RedeemEnabled(true, block.timestamp);
+    function toggleRedeem(bool state) public onlyOwner {
+        redeemEnabled = state;
+        emit RedeemEnabled(state, block.timestamp);
     }
 
     function withdrawInvestablePool() public onlyOwner {
-        require(block.timestamp > launchEndTime, "Sale has not ended");
+        require(block.timestamp > launchEndTime || finalized, "Sale has not ended");
         uint256 amount = ERC20(investToken).balanceOf(address(this));
         ERC20(investToken).transfer(fundsRedeemer, amount);
         //ERC20(investToken).approve(fundsRedeemer, amount);
